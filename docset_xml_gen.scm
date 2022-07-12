@@ -1,17 +1,19 @@
 #!/usr/bin/env guile
 !#
 
+(use-modules (sxml simple))
+
 (define title (car (command-line)))
 (define args (cdr (command-line)))
 
 ; Initialize globals
-(define docset-path "")
-(define plist-path "")
-(define out-path "")
-(define doc-name "")
+(define docset-path        "")
+(define plist-path         "")
+(define out-path           "")
+(define doc-name           "")
 (define doc-other-versions "")
-(define doc-url "")
-(define doc-version "")
+(define doc-url            "")
+(define doc-version        "")
 
 ; Define help message
 (define (print-help)
@@ -23,9 +25,9 @@
   (display                "  -h, --help                      Print this help message and exit\n")
   (display                "  -n, --name NAME                 Set the value of the \"name\" tag.\n")
   (display                "                                  Automatically determined if not set manually\n")
-  (display                "  -o, --out FILE                  Output to FILE instead of stdout\n")
   (display                "      --other-versions VERSION    Add additional versions under the \"other-versions\" tag.\n")
   (display                "                                  Multiple values may be set using comma-separation\n")
+  (display                "  -o, --out FILE                  Output to FILE instead of stdout\n")
   (display                "  -u, --url URL                   Set the value of the \"url\" tag.\n")
   (display                "                                  Multiple values may be set using comma-separation.\n")
   (display                "                                  Set to the local path if not set manually\n")
@@ -58,7 +60,7 @@
 	   (read-options (cddr args))))
 	((check-options (car args) '("--other-versions"))
 	 (begin
-	   (set! doc-other-versions (cadr args))
+	   (set! doc-other-versions (string-split (cadr args) #\,))
 	   (read-options (cddr args))))
 	((check-options (car args) '("-o" "--out"))
 	 (begin
@@ -66,7 +68,7 @@
 	   (read-options (cddr args))))
 	((check-options (car args) '("-u" "--url"))
 	 (begin
-	   (set! doc-url (cadr args))
+	   (set! doc-url (string-split (cadr args) #\,))
 	   (read-options (cddr args))))
 	((check-options (car args) '("-v" "--version"))
 	 (begin
@@ -95,3 +97,26 @@
   (begin
 	(display (string-append "Error: " docset-path " is not a valid docset (could not find " plist-path ")\n"))
 	(exit)))
+
+; Parse plist for metadata
+(define plist-port (open-file plist-path "r"))
+(define plist-sxml (xml->sxml plist-port))
+(close-port plist-port)
+
+; SXML parser helper
+; TODO cleanup and find a better way to parse SXML
+(define (sxml-get-node sxml node)
+  (if (and (not (null? sxml)) (list? sxml))
+	(begin
+	  (if (equal? (car sxml) (string->symbol node))
+		(set! plist-sxml (cddr sxml)))
+		(begin
+		  (sxml-get-node (car sxml) node)
+		  (sxml-get-node (cdr sxml) node)))))
+
+; Compress plist-sxml to only keys and values
+(sxml-get-node plist-sxml "dict")
+(display plist-sxml)
+(newline)
+(display (cadadr (cdr plist-sxml)))
+(newline)
